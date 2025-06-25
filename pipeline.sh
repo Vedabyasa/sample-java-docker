@@ -72,6 +72,12 @@ fi
 
 cd "$REPO_DIR"
 
+# checking for valid maven project
+if [[ ! -f "pom.xml" ]]; then
+  log "❌ No pom.xml found. Not a Maven project - hence, stopping the execution..."
+  exit 1
+fi
+
 # Starting maven build
 log "Building the project with Maven..."
 if mvn clean install; then
@@ -89,11 +95,6 @@ if [[ ! -f "$ARTIFACT_PATH" ]]; then
 fi
 
 log "Found artifact: $ARTIFACT_PATH"
-
-if [[ ! -f "pom.xml" ]]; then
-  log "❌ No pom.xml found. Not a Maven project - hence, stopping the execution..."
-  exit 1
-fi
 
 # Check if Nexus is running on the expected port
 log "Checking if Nexus is running..."
