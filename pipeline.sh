@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Setting log file
-LOG_FILE="pipeline_$(date +%F_%T).log"
+LOG_FILE="pipeline_$(date +%F_%H-%M-%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 # initializing logging
@@ -31,6 +31,13 @@ NEXUS_REPOSITORY="$4"
 : "${NEXUS_USERNAME:?Need to set NEXUS_USERNAME}"
 : "${NEXUS_PASSWORD:?Need to set NEXUS_PASSWORD}"
 
+for cmd in git mvn curl; do
+  if ! command -v $cmd &> /dev/null; then
+    log "❌ Required command '$cmd' is not installed - hence, pipeline failed..."
+    exit 1
+  fi
+done
+
 REPO_DIR=$(basename "$GIT_REPOSITORY" .git)
 
 # Cloning the java repository from git
@@ -43,13 +50,25 @@ cd "$REPO_DIR"
 
 # Starting maven build
 log "Building the project with Maven..."
-mvn clean install
+if mvn clean install; then
+  log "✅ Maven build successful."
+else
+  log "❌ Maven build failed - hence, pipeline failed..."
+  exit 1
+fi
 
 # Adding a check if the artifact created successfully
 ARTIFACT_PATH=$(find target -name "*.jar" | head -n 1)
 if [[ ! -f "$ARTIFACT_PATH" ]]; then
     log "Artifact not found!"
     exit 1
+fi
+
+log "Found artifact: $ARTIFACT_PATH"
+
+if [[ ! -f "pom.xml" ]]; then
+  log "❌ No pom.xml found. Not a Maven project - hence, pipeline failed..."
+  exit 1
 fi
 
 # Uploading artifcats to Nexus
@@ -64,13 +83,12 @@ UPLOAD_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -u "${NEXUS_USERNAME}:$
 if [[ "$UPLOAD_RESPONSE" == "201" ]]; then
     log "✅ Artifact uploaded successfully to Nexus."
 else
-    log "❌ Failed to upload artifact to Nexus. HTTP status code: $UPLOAD_RESPONSE"
+    log "❌ Failed to upload artifact to Nexus. HTTP status code: $UPLOAD_RESPONSE - hence, pipeline failed..."
     exit 1
 fi
 
 # SonarQube Analysis
 log "Running SonarQube analysis..."
-log "SONAR_PROJECT_KEY: $SONAR_PROJECT_KEY"
 mvn sonar:sonar \
     -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
     -Dsonar.host.url="$SONARQUBE_URL" \
