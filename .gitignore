@@ -3,4 +3,7 @@
 */target/
 
 # Ignore pipeline log files
-pipeline_*.log
+logs
+
+#env file
+.env

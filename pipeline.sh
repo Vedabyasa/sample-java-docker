@@ -3,7 +3,8 @@
 set -euo pipefail
 
 # Setting log file
-LOG_FILE="pipeline_$(date +%F_%H-%M-%S).log"
+mkdir -p logs
+LOG_FILE="logs/pipeline_$(date +%F_%H-%M-%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 # initializing logging
@@ -25,7 +26,7 @@ wait_for_service() {
     log "Waiting for $name... ($i/30)"
     sleep 5
   done
-  log "❌ $name did not become ready in time."
+  log "❌ $name did not become ready in time - hence, stopping the execution..."
   return 1
 }
 
@@ -62,8 +63,12 @@ REPO_DIR=$(basename "$GIT_REPOSITORY" .git)
 # Cloning the java repository from git
 log "Cloning repository..."
 rm -rf "$REPO_DIR"
-git clone --branch "$BRANCH_NAME" "$GIT_REPOSITORY"
-log "Git clone Successful"
+if git clone --branch "$BRANCH_NAME" "$GIT_REPOSITORY"; then
+  log "✅ Git clone successful."
+else
+  log "❌ Git clone failed. Please check the repository URL or branch - stopping the execution..."
+  exit 1
+fi
 
 cd "$REPO_DIR"
 
