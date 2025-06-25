@@ -70,6 +70,7 @@ Ensure the following tools are installed:
 
 - chmod +x pipeline.sh
 - ./pipeline.sh https://github.com/Vedabyasa/hello-world-maven.git main helloWorld raw-artifacts
+- ./pipeline.sh https://github.com/spring-projects/spring-petclinic.git main petclinic raw-artifacts
 
 ## Logs
 

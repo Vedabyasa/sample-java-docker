@@ -90,7 +90,7 @@ fi
 # Adding a check if the artifact created successfully
 ARTIFACT_PATH=$(find target -name "*.jar" | head -n 1)
 if [[ ! -f "$ARTIFACT_PATH" ]]; then
-    log "Artifact not found!"
+    log "Artifact not found - hence, stopping the execution..."
     exit 1
 fi
 
