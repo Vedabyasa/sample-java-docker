@@ -1,0 +1,6 @@
+# Java Projects
+*/pom.xml
+*/target/
+
+# Ignore pipeline log files
+pipeline_*.log
