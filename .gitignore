@@ -2,8 +2,8 @@
 */pom.xml
 */target/
 
-# Ignore pipeline log files
-logs
-
 #env file
 .env
+
+# Ignore pipeline log files
+logs
