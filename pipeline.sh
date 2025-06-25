@@ -11,10 +11,28 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
+# Common function to check if services are ready
+wait_for_service() {
+  local name="$1"
+  local url="$2"
+  local check_string="$3"
+  log "Waiting for $name to be ready..."
+  for i in {1..30}; do
+    if curl -s "$url" | grep -q "$check_string"; then
+      log "✅ $name is ready."
+      return 0
+    fi
+    log "Waiting for $name... ($i/30)"
+    sleep 5
+  done
+  log "❌ $name did not become ready in time."
+  return 1
+}
+
 # Adding a check for command line arguments
 if [[ $# -lt 4 ]]; then
     echo "Usage: $0 <GIT_REPOSITORY_url> <branch> <sonar_project_key> <nexus_repo>"
-    log "Missing command line arguments - hence, pipeline failed..."
+    log "Missing command line arguments - hence, stopping the execution..."
     exit 1
 fi
 
@@ -31,9 +49,10 @@ NEXUS_REPOSITORY="$4"
 : "${NEXUS_USERNAME:?Need to set NEXUS_USERNAME}"
 : "${NEXUS_PASSWORD:?Need to set NEXUS_PASSWORD}"
 
-for cmd in git mvn curl; do
+# Checking if all the require commands are installed
+for cmd in git mvn curl docker; do
   if ! command -v $cmd &> /dev/null; then
-    log "❌ Required command '$cmd' is not installed - hence, pipeline failed..."
+    log "❌ Required command '$cmd' is not installed - hence, stopping the execution..."
     exit 1
   fi
 done
@@ -53,7 +72,7 @@ log "Building the project with Maven..."
 if mvn clean install; then
   log "✅ Maven build successful."
 else
-  log "❌ Maven build failed - hence, pipeline failed..."
+  log "❌ Maven build failed - hence, stopping the execution..."
   exit 1
 fi
 
@@ -67,8 +86,26 @@ fi
 log "Found artifact: $ARTIFACT_PATH"
 
 if [[ ! -f "pom.xml" ]]; then
-  log "❌ No pom.xml found. Not a Maven project - hence, pipeline failed..."
+  log "❌ No pom.xml found. Not a Maven project - hence, stopping the execution..."
   exit 1
+fi
+
+# Check if Nexus is running on the expected port
+log "Checking if Nexus is running..."
+if ! curl -s --head --request GET "${NEXUS_URL}" | grep "200 OK" > /dev/null; then
+    log "Nexus is not responding at $NEXUS_URL"
+
+    # Attempt to start the Nexus Docker container
+    if docker ps -a --format '{{.Names}}' | grep -q "^nexus$"; then
+        log "Starting Nexus container..."
+        docker start nexus
+        wait_for_service "Nexus" "${NEXUS_URL}/service/rest/v1/status" '"status":"STARTED"' || exit 1
+    else
+        log "❌ Nexus container not found. Please run or install Nexus manually - hence, stopping the execution..."
+        exit 1
+    fi
+else
+    log "✅ Nexus is running at $NEXUS_URL"
 fi
 
 # Uploading artifcats to Nexus
@@ -83,8 +120,24 @@ UPLOAD_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -u "${NEXUS_USERNAME}:$
 if [[ "$UPLOAD_RESPONSE" == "201" ]]; then
     log "✅ Artifact uploaded successfully to Nexus."
 else
-    log "❌ Failed to upload artifact to Nexus. HTTP status code: $UPLOAD_RESPONSE - hence, pipeline failed..."
+    log "❌ Failed to upload artifact to Nexus. HTTP status code: $UPLOAD_RESPONSE - hence, stopping the execution..."
     exit 1
+fi
+# Checking if sonarQube is running, else starting
+log "Checking if SonarQube is running..."
+if ! curl -s --head --request GET "${SONARQUBE_URL}" | grep "200 OK" > /dev/null; then
+  log "SonarQube is not responding at $SONARQUBE_URL"
+
+  if docker ps -a --format '{{.Names}}' | grep -q "^sonarqube$"; then
+    log "Starting SonarQube container..."
+    docker start sonarqube
+    wait_for_service "SonarQube" "${SONARQUBE_URL}/api/system/status" '"status":"UP"' || exit 1
+  else
+    log "❌ SonarQube container not found. Please install or run SonarQube manually - hence, stopping the execution..."
+    exit 1
+  fi
+else
+  log "✅ SonarQube is running at $SONARQUBE_URL"
 fi
 
 # SonarQube Analysis
