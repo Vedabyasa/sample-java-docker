@@ -7,3 +7,6 @@
 
 # Ignore pipeline log files
 logs
+
+# Ignore .DS_Store
+.DS_Store

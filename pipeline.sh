@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Ensuring pipeline fails if any of the step fails
 set -euo pipefail
 
 # Setting log file
@@ -7,7 +8,7 @@ mkdir -p logs
 LOG_FILE="logs/pipeline_$(date +%F_%H-%M-%S).log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-# initializing logging
+# adding log functtion to have a proper logging format
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
